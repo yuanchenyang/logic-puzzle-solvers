@@ -40,17 +40,19 @@ class Sudoku():
         self.instance_constraints += instance_c
 
     def add_killer_sudoku(self, instance, sums=None, equals=None, gts=None,
-                          distinct=True):
+                          nes=None, distinct=True):
         sums = sums or {}
+        nes = nes or {}
         equals = equals or []
         gts = gts or []
         groups = self.get_groups(instance)
         symbols = set(tuple(sums.keys()) + sum(equals + gts, tuple()))
         distinct_c = [Distinct(groups[s]) for s in symbols] if distinct else []
         sums_c =   [sum(groups[c]) == val            for c, val in sums.items()]
+        nes_c =    [sum(groups[c]) != val            for c, val in nes.items()]
         equals_c = [sum(groups[a]) == sum(groups[b]) for a,b in equals]
         gt_c =     [sum(groups[a]) >  sum(groups[b]) for a,b in gts]
-        self.instance_constraints += sums_c + distinct_c + equals_c + gt_c
+        self.instance_constraints += sums_c + distinct_c + equals_c + gt_c + nes_c
 
     def add_miracle_rules(self):
         ortho_move  = [(-1, 0), (1, 0), (0,-1), (0, 1)]
