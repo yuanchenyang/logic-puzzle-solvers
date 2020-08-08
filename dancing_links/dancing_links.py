@@ -62,19 +62,23 @@ class Col(Cell):
 
 class Instance:
     '''An instance of an exact cover problem'''
-    def __init__(self, entries):
-        '''entries is a sequence of (row, col) indices corresponding to the
-        locations of 1s in the matrix
+    def __init__(self, rows, cols):
+        ''' Cols is a sequence of column names, rows is a sequence of tuples of
+        column names
         '''
-        self.entries = entries
-        self.nrows = first(max(entries, key=first))+1
-        self.ncols = second(max(entries, key=second))+1
+        self.rows = rows
+        self.cols = cols
+        self.col_index = {col: i for i, col in enumerate(cols)}
+        self.entries = [(ri, self.col_index[c]) for ri, row in enumerate(rows)
+                                                for c in row]
         self.initialize()
 
     def from_matrix(M):
-        return Instance([(ri, ci) for ri, row in enumerate(M)
-                                  for ci, entry in enumerate(row)
-                                  if entry == 1])
+        cols = range(len(M[0]))
+        rows = [[ci for ci, entry in enumerate(row) if entry == 1]
+                for row in M]
+        return Instance(rows, cols)
+
     def __iter__(self):
         '''Iterates through rows of matrix, return a pair of row number and
         items in that row'''
@@ -86,7 +90,7 @@ class Instance:
         head = Col()
 
         # Build column headers
-        cols = [Col() for i in range(self.ncols)]
+        cols = [Col() for i in range(len(self.cols))]
         link_row(cols)
         cols[-1].insert_E(head)
 
@@ -103,49 +107,32 @@ class Instance:
             link_row(cur_row)
         self.head = head
 
-def dancing_links(inst):
-    '''Given a matrix of 0s and 1s M, return a generator of exact covers of M:
-    Each exact cover is a tuple of rows containing exactly one 1 per column.
+    @property
+    def dancing_links(self):
+        '''Given a matrix of 0s and 1s M, return a generator of exact covers of M:
+        Each exact cover is a tuple of rows containing exactly one 1 per column.
 
-    Implements Knuth's algorithm: https://arxiv.org/abs/cs/0011047
-    '''
-    out = []
-    def search():
-        if inst.head.E == inst.head:
-            yield tuple(o.row for o in out)
-        else:
-            # Choose column c with least branches
-            col = min(inst.head.iter_dir('E'), key=lambda c: c.count)
-            col.cover()
-            for row in col.iter_dir('S'):
-                out.append(row)
-                for cell in row.iter_dir('E'):
-                    cell.C.cover()
-                for result in search():
-                    yield result
-                row = out.pop()
-                for cell in row.iter_dir('W'): # order reversed when uncovering
-                    cell.C.uncover()
-            col.uncover()
-    return search()
-
-class Sudoku(Instance):
-    def __init__(self, grid):
-        X = [[int(n) for n in row] for row in grid]
-        # row[i][d] = True iff d can be placed in row[i] of grid
-        rows, cols, boxes = [[True]*9]*9, [[True]*9]*9, [[True]*9]*9
-        for ri, row in range(9):
-            for ci in range(9):
-                pass
-
-        row_index = {row: i for i, row in enumerate(product(range(9), repeat=3))}
-        col_index = {col: i for i, col in enumerate(product(range(9), repeat=5))}
-
-        for i, (ri, ci, d) in enumerate(grid):
-            pass
-    def print_solution(self, row):
-        pass
-
+        Implements Knuth's algorithm: https://arxiv.org/abs/cs/0011047
+        '''
+        out = []
+        def search():
+            if self.head.E == self.head:
+                yield tuple(o.row for o in out)
+            else:
+                # Choose column c with least branches
+                col = min(self.head.iter_dir('E'), key=lambda c: c.count)
+                col.cover()
+                for row in col.iter_dir('S'):
+                    out.append(row)
+                    for cell in row.iter_dir('E'):
+                        cell.C.cover()
+                    for result in search():
+                        yield result
+                    row = out.pop()
+                    for cell in row.iter_dir('W'): # order reversed when uncovering
+                        cell.C.uncover()
+                col.uncover()
+        return search()
 
 class TestDancingLinks(unittest.TestCase):
     def test(self):
@@ -168,7 +155,7 @@ class TestDancingLinks(unittest.TestCase):
                 else:
                     assert (ri, ci) in ones
 
-        assert list(dancing_links(inst)) == [(3, 0, 4)]
+        assert list(inst.dancing_links) == [(3, 0, 4)]
 
 README = \
 '''Reads in an exact cover instance, defined by one line of space-separated
@@ -188,5 +175,5 @@ if __name__ == '__main__':
     inst = Instance([(ri, col_index[col]) for ri, row in enumerate(rows)
                                           for col in row.strip().split(' ')])
 
-    for link, _ in zip(dancing_links(inst), range(args.limit)):
+    for link, _ in zip(inst.dancing_links, range(args.limit)):
         print(''.join(rows[r] for r in link))
